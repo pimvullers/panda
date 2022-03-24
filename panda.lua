@@ -521,7 +521,15 @@ local function default_image_cache()
 end
 
 local function diagram(block)
-    local render = get_attr(block, "render")
+    local render = nil
+    if has_class(block, "plantuml") then
+        render = env["plantuml"]
+    elseif has_class(block, "ditaa") then
+        render = env["ditaa"]
+    else
+        render = get_attr(block, "render")
+    end
+
     if render then
         local contents = block.text
         local ext = get_ext(render)

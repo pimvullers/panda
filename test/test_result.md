@@ -1,18 +1,18 @@
 ---
+boolean_metadata_false: false
 boolean_metadata_true: true
 number_metadata: 42
-string_metadata: true
-title: 'Test document for *panda*'
+string_metadata: a string
+title: Test document for *panda*
 ---
 
-Expansion
-=========
+# Expansion
 
 Input file: test/test.md
 
 Output file: .build/test.md
 
-``` {.lua}
+``` lua
 -- normal code block
 -- foo = bar
 -- bar = The title is: Test document for panda
@@ -21,12 +21,12 @@ Output file: .build/test.md
 -- email2 = me2@example.com
 ```
 
--   title = Test document for *panda*
--   string\_metadata = true
--   boolean\_metadata\_true = true
--   boolean\_metadata\_false = false
--   number\_metadata = 42
--   foo = bar
+-   title = "Test document for *panda*"
+-   string_metadata = a string (a string) a string, a string.
+-   boolean_metadata_true = true
+-   boolean_metadata_false = false
+-   number_metadata = 42
+-   foo = bar (bar) bar, bar.
 -   bar = The title is: Test document for panda
 -   baz = {{baz}}
 -   email = [my email](me@example.com)
@@ -36,17 +36,13 @@ Output file: .build/test.md
 
 [bar](bar/index.html)
 
-Header { foo = bar } {#header-foo-foo}
---------------------
+## Header { foo = bar } {#header-foo-foo}
 
-Conditional blocks
-==================
+# Conditional blocks
 
-Comments
---------
+## Comments
 
-Condition
----------
+## Condition
 
 <div>
 
@@ -54,10 +50,30 @@ foo is bar
 
 </div>
 
-File inclusion
-==============
+<div>
 
-``` {.c}
+`number_medatata` is 42
+
+</div>
+
+<div>
+
+`boolean_metadata_false` is false
+
+</div>
+
+<div>
+
+`string_metadata` is `"a string"`
+
+</div>
+
+Also works for inline spans. foo is bar and `string_metadata` is
+`"a string"`
+
+# File inclusion
+
+``` c
 int main(void)
 {
     return 0;
@@ -70,15 +86,13 @@ int main(void)
         return 0;
     }
 
-Title of the included file
---------------------------
+## Title of the included file
 
 Content of the included file (foo = bar)
 
-Scripts
-=======
+# Scripts
 
-``` {.class}
+``` class
 Pandoc is great!
 ```
 
@@ -86,9 +100,8 @@ Pandoc is great!
 
 1 + 1 = 2
 
-Diagrams
-========
+# Diagrams
 
-![](.build/img/panda_plantuml_test.svg "Alice & Bob")
+![Alice & Bob](.build/img/panda_plantuml_test.svg "Alice & Bob")
 
-![](.build/cache/0ec62f1568ac33e20ec8d430ae77a9cbe6c9cd46.svg "Alice & Bob")
+[![Alternative description](.build/cache/0ec62f1568ac33e20ec8d430ae77a9cbe6c9cd46.svg "Alice & Bob")](http://example.com "Alice & Bob")

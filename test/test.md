@@ -1,6 +1,6 @@
 ---
 title: Test document for *panda*
-string_metadata: "true"
+string_metadata: "a string"
 boolean_metadata_true: true
 boolean_metadata_false: false
 number_metadata: 42
@@ -30,12 +30,12 @@ email = "[my email](me@example.com)"
 -- email2 = {{email2}}
 ```
 
-- title = {{title}}
-- string\_metadata = {{string_metadata}}
+- title = "{{title}}"
+- string\_metadata = {{string_metadata}} ({{string_metadata}}) {{string_metadata}}, {{string_metadata}}.
 - boolean\_metadata\_true = {{boolean_metadata_true}}
 - boolean\_metadata\_false = {{boolean_metadata_false}}
 - number\_metadata = {{number_metadata}}
-- foo = {{foo}}
+- foo = {{foo}} ({{foo}}) {{foo}}, {{foo}}.
 - bar = {{bar}}
 - baz = {{baz}}
 - email = {{email}}
@@ -70,6 +70,37 @@ foo is baz
 baz is yo
 :::
 
+::: {.if number_metadata=42}
+`number_medatata` is 42
+:::
+
+::: {.if number_metadata=43}
+`number_medatata` is 43
+:::
+
+::: {.if boolean_metadata_false=true}
+`boolean_metadata_false` is true
+:::
+
+::: {.if boolean_metadata_false=false}
+`boolean_metadata_false` is false
+:::
+
+::: {.if string_metadata="string"}
+`string_metadata` is `"string"`
+:::
+
+::: {.if string_metadata="a string"}
+`string_metadata` is `"a string"`
+:::
+
+Also works for inline spans.
+[foo is bar]{.if foo=bar}
+[foo is baz]{.if foo=baz}
+and
+[`string_metadata` is `"string"`]{.if string_metadata="string"}
+[`string_metadata` is `"a string"`]{.if string_metadata="a string"}
+
 # File inclusion
 
 ```{.c include=test/test_include.c from=5}
@@ -93,13 +124,13 @@ print("Pandoc is great!")
 
 # Diagrams
 
-```{render="{{plantuml}}" img="{{build}}/img/panda_plantuml_test" out="{{build}}/img" title="Alice & Bob"}
+```{render="{{plantuml}}" img="{{build}}/img/panda_plantuml_test" out="{{build}}/img" caption="Alice & Bob"}
 @startuml
 Alice -> Bob: hello
 @enduml
 ```
 
-```{render="{{plantuml}}" title="Alice & Bob"}
+```{render="{{plantuml}}" caption="Alice & Bob" alt="Alternative description" target="http://example.com"}
 @startuml
 Alice -> Bob: hello
 @enduml

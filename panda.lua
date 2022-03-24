@@ -21,53 +21,31 @@
 --]]
 
 local pandoc = require "pandoc"
-local utils = require "pandoc.utils"
-local system = require "pandoc.system"
+local utils = pandoc.utils
+local system = pandoc.system
+
+local api_1_22 = PANDOC_API_VERSION >= {1, 22}
+
+local nullBlock, nullInline
+if api_1_22 then
+    nullBlock = pandoc.Null()
+    nullInline = pandoc.Inline
+else
+    nullBlock = pandoc.Null
+    nullInline = pandoc.Inline
+end
 
 local filters = {}
 
 -- User Lua environment {{{
-local env = {
-    -- Pandoc modules
-    pandoc = pandoc,
-    utils = utils,
-    input_file = PANDOC_STATE.input_files[1],
-    output_file = PANDOC_STATE.output_file,
 
-    -- Basic functions
-    assert = assert,
-    dofile = dofile,
-    error = error,
-    getmetatable = getmetatable,
-    ipairs = ipairs,
-    load = load,
-    loadfile = loadfile,
-    next = next,
-    pairs = pairs,
-    pcall = pcall,
-    print = print,
-    rawequal = rawequal,
-    rawget = rawget,
-    rawlen = rawlen,
-    rawset = rawset,
-    select = select,
-    setmetatable = setmetatable,
-    tonumber = tonumber,
-    tostring = tostring,
-    type = type,
-    _VERSION = _VERSION,
-    warn = warn,
-    xpcall = xpcall,
+-- The global environment _G is used to execute Lua filters
 
-    -- Modules
-    require = require,
-    string = string,
-    utf8 = utf8,
-    table = table,
-    math = math,
-    io = io,
-    os = os,
-}
+_G.pandoc = pandoc
+_G.utils = utils
+_G.input_file = PANDOC_STATE.input_files[1]
+_G.output_file = PANDOC_STATE.output_file
+
 -- }}}
 
 -- {{{ Trace
@@ -188,16 +166,16 @@ local var_pattern_esc = "%%7B%%7B([%w_%.]-)%%7D%%7D"
 
 local function get_env_var()
     for k, v in pairs(system.environment()) do
-        env[k] = v
+        _G[k] = v
     end
 end
 
 local function read_vars_in_meta(meta)
     for k, v in pairs(meta) do
         if type(v) == "table" and v.t == 'MetaInlines' then
-            env[k] = {table.unpack(v)}
+            _G[k] = {table.unpack(v)}
         else
-            env[k] = pandoc.MetaString(utils.stringify(v))
+            _G[k] = pandoc.MetaString(utils.stringify(v))
         end
     end
 end
@@ -205,17 +183,17 @@ end
 local function read_vars_in_block(block)
     if has_class(block, "meta") then
         block = include_codeblock(block) or block
-        assert(load(block.text, block.text, "t", env))()
-        return pandoc.Null
+        assert(load(block.text, block.text, "t", _G))()
+        return nullBlock
     end
 end
 
 local function expand_vars(s)
     s = s:gsub(var_pattern, function (var)
-        return var and env[var] and utils.stringify(env[var])
+        return var and _G[var]~=nil and utils.stringify(_G[var])
     end)
     s = s:gsub(var_pattern_esc, function (var)
-        return var and env[var] and utils.stringify(env[var])
+        return var and _G[var]~=nil and utils.stringify(_G[var])
     end)
     return s
 end
@@ -239,10 +217,12 @@ local function expand_str(el)
             if j > i then items:insert(pandoc.Str(string.sub(el.text, i, j-1))) end
             -- j..k => variable name
             local var = string.sub(el.text, j+2, k-2)
-            local value = env[var]
+            local value = _G[var]
             if value then
                 if type(value) == "string" then
                     value = utils.blocks_to_inlines(pandoc.read(value).blocks)
+                    items:extend(value)
+                elseif type(value) == "table" then
                     items:extend(value)
                 else
                     items:insert(value)
@@ -301,9 +281,11 @@ local function add_dep(filename)
     if not deps:find(filename) then
         deps:insert(filename)
     end
-    if env["PANDA_TARGET"] then
-        local f = assert(io.open(env["PANDA_TARGET"]..".d", "w"), "Can not create "..env["PANDA_TARGET"])
-        f:write(env["PANDA_TARGET"]..": "..table.concat(deps, " ").."\n")
+    if _G["PANDA_TARGET"] then
+        local target = _G["PANDA_TARGET"]
+        local depfile = _G["PANDA_DEP_FILE"] or target..".d"
+        local f = assert(io.open(depfile, "w"), "Can not create "..depfile)
+        f:write(target..": "..table.concat(deps, " ").."\n")
         f:close()
     end
 end
@@ -319,27 +301,35 @@ end
 
 -- Conditional blocks, commented blocks {{{
 
-local function conditional(block)
-    if has_class(block, "if") then
-        local attributes_to_clean = {}
-        local cond = true
-        for k, v in pairs(block.attr.attributes) do
-            cond = cond and (env[k] == v)
-            table.insert(attributes_to_clean, k)
-        end
-        if cond then
-            local block = block:clone()
-            block.attr = clean_attr({"if"}, attributes_to_clean, block.attr)
-            return block
-        else
-            return pandoc.Null
+local function conditional(empty)
+    return function(block)
+        if has_class(block, "if") then
+            local attributes_to_clean = {}
+            local cond = true
+            for k, v in pairs(block.attr.attributes) do
+                local val = _G[k]
+                if type(val) == "table" then
+                    val = utils.stringify(val)
+                else
+                    val = tostring(val)
+                end
+                cond = cond and (val == v)
+                table.insert(attributes_to_clean, k)
+            end
+            if cond then
+                local block = block:clone()
+                block.attr = clean_attr({"if"}, attributes_to_clean, block.attr)
+                return block
+            else
+                return empty -- return pandoc.Null
+            end
         end
     end
 end
 
 local function comment(block)
     if has_class(block, "comment") then
-        return pandoc.Null
+        return nullBlock
     end
 end
 
@@ -420,7 +410,7 @@ end
 
 -- }}}
 
---- {{{ Scripts
+-- {{{ Scripts
 
 local function make_script_cmd(cmd, arg)
     local cmd, n = string.gsub(cmd, "%%s", arg)
@@ -431,6 +421,7 @@ end
 local function run_script(cmd, content)
     return system.with_temporary_directory("panda_script", function (tmpdir)
         local name = tmpdir.."/script"
+        name = name..cmd:gsub("^%s*(%w+).*", ".%1") -- try to guess the file extension (e.g. for cmd.exe on Windows)
         local f = assert(io.open(name, "w"))
         f:write(content)
         f:close()
@@ -470,8 +461,8 @@ end
 local function set_diagram_env()
 
     local path = dirname(PANDOC_SCRIPT_FILE)
-    if not env["PLANTUML"] then env["PLANTUML"] = path.."/plantuml.jar" end
-    if not env["DITAA"] then env["DITAA"] = path.."/ditaa.jar" end
+    if not _G["PLANTUML"] then _G["PLANTUML"] = path.."/plantuml.jar" end
+    if not _G["DITAA"] then _G["DITAA"] = path.."/ditaa.jar" end
 
     local default_ext = "svg"
     if FORMAT == "html" then default_ext = "svg" end
@@ -483,9 +474,9 @@ local function set_diagram_env()
         post = post or function(_, c) return c end
         for exe in exes:gmatch "%S+" do
             for ext in exts:gmatch "%S+" do
-                env[exe.."."..ext] = expand_vars(post(ext, cmd:gsub("%%exe", exe):gsub("%%ext", ext):gsub("%%o", "%%o."..ext)))
+                _G[exe.."."..ext] = expand_vars(post(ext, cmd:gsub("%%exe", exe):gsub("%%ext", ext):gsub("%%o", "%%o."..ext)))
             end
-            env[exe] = expand_vars(post(default_ext, cmd:gsub("%%exe", exe):gsub("%%ext", default_ext):gsub("%%o", "%%o."..default_ext)))
+            _G[exe] = expand_vars(post(default_ext, cmd:gsub("%%exe", exe):gsub("%%ext", default_ext):gsub("%%o", "%%o."..default_ext)))
         end
     end
     engines("dot neato twopi circo fdp sfdp patchwork osage", "svg png pdf", "%exe -T%ext -o %o %i")
@@ -517,7 +508,7 @@ local function render_diagram(cmd, contents)
 end
 
 local function default_image_cache()
-    return env["PANDA_CACHE"] or ".panda"
+    return _G["PANDA_CACHE"] or ".panda"
 end
 
 local function diagram(block)
@@ -549,7 +540,8 @@ local function diagram(block)
         local meta_content = "source: "..hash_digest.."\n"..
                              "render: "..render.."\n"..
                              "img: "..img.."\n"..
-                             "out: "..out.."\n"
+                             "out: "..out.."\n"..
+                             "\n"..contents
 
         local old_meta = file_content(meta) or ""
         if not file_exists(out..ext) or meta_content ~= old_meta then
@@ -566,11 +558,14 @@ local function diagram(block)
             end)
         end
 
-        local title = get_attr(block, "title") or ""
-        local attrs = clean_attr({}, {"render", "img", "out", "target", "title"}, block.attr)
-        local image = pandoc.Image({}, img..ext, title, attrs)
+        local caption = get_attr(block, "caption")
+        local title = get_attr(block, "title") -- deprecated, use caption
+        caption = caption or title or ""
+        local alt = get_attr(block, "alt") or caption
+        local attrs = clean_attr({}, {"render", "img", "out", "target", "caption", "title", "alt"}, block.attr)
+        local image = pandoc.Image(alt, img..ext, caption, attrs)
         if target then
-            return pandoc.Para{pandoc.Link(image, target, title)}
+            return pandoc.Para{pandoc.Link(image, target, caption)}
         else
             return pandoc.Para{image}
         end
@@ -604,7 +599,9 @@ filters = {
     },
 
     -- Conditional blocks
-    { Block = conditional },
+    { Block = conditional(nullBlock),
+      Inline = conditional(nullInline),
+    },
 
     -- Commented blocks
     { Block = comment },

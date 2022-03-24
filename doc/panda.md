@@ -1,6 +1,6 @@
 % Panda - Pandoc add-ons (Lua filters for Pandoc)
 % Christophe Delord - <http://cdelord.fr/panda>
-% 30th April 2021
+% 12th november 2021
 
 [panda]: http://cdelord.fr/panda "Pandoc add-ons (Lua filters for Pandoc)"
 [GraphViz]: http://graphviz.org/
@@ -86,13 +86,13 @@ Cheat sheet
 |                   |               |                           | if it is defined (variables can be            |
 |                   |               |                           | environment variables or Lua variables)       |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
-| div block         | `comment`     |                           | commented block                               |
+| any block         | `comment`     |                           | commented block                               |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
-| div block         |               | `include=file`            | replaces the div block with the content of    |
+| any block         |               | `include=file`            | replaces the div block with the content of    |
 |                   |               |                           | `file` (rendered according to its format)     |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
-| div block         |               | `shift=n`                 | adds `n` to header levels in an imported      |
-|                   |               |                           | div block                                     |
+| div block,        |               | `shift=n`                 | adds `n` to header levels in an imported      |
+| code block        |               |                           | div block                                     |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
 | div block,        |               | `pattern="Lua string      | applies a Lua string pattern to the content   |
 | code block        |               | pattern"`                 | of the file. The emitted text is `format`.    |
@@ -102,12 +102,8 @@ Cheat sheet
 | code block        | `meta`        |                           | definitions for the string expansion          |
 |                   |               |                           | (Lua script), defined in the code block       |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
-| any block         |               | `ifdef=name`              | block emitted only if `name` is defined       |
-+-------------------+---------------+---------------------------+-----------------------------------------------+
-| any block         |               | `ifdef=name value=val`    | block emitted only if `name` is defined and   |
-|                   |               |                           | its value is `value`                          |
-+-------------------+---------------+---------------------------+-----------------------------------------------+
-| any block         |               | `ifndef=name`             | block emitted only if `name` is not defined   |
+| any block,        | `if`          | `name=val`                | block emitted only if `name`'s value is `val` |
+| any inline        |               |                           |                                               |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
 | code block,       |               | `include=file`            | replaces the code block content with the      |
 | inline code       |               |                           | content of `file`                             |
@@ -187,22 +183,8 @@ Conditional blocks
 Blocks can be conditionally kept or omitted. The condition is described with attributes.
 
 ```markdown
-:::{ifdef="name" value="value"}
-This block is emitted only if the variable "name" is defined
-and its value is "value"
-:::
-```
-
-```markdown
-:::{ifdef="name"}
-This block is emitted only if the variable "name" is defined
-(whatever its value)
-:::
-```
-
-```markdown
-:::{ifndef="name"}
-This block is emitted only if the variable "name" is **not** defined
+:::{.if name="value"}
+This block is emitted only if the value of the variable "name" is "value"
 :::
 ```
 
@@ -279,6 +261,10 @@ The render command is the `render` field.
 The output image can be a hash computed from the diagram source code or the value of the `img` field.
 The optional `out` field overloads `img` to change the output directory when rendering the diagram.
 
+The description of the image is in the `caption` and `alt` fields.
+`caption` is the caption of the diagram. `alt` is the alternative description of the diagram.
+The optional `target` field is a URL pointed by the image.
+
 In the `render` command, `%i` is replaced by the name of the input document
 (generated from the content of the code block) and
 `%o` by the name of the output image file (generated from the `img` field).
@@ -302,7 +288,9 @@ _build = "{{build}}"
 | ~~~ markdown                          |                                                 |
 | ``` { render="{{_plantuml}}"          | ``` { render="{{plantuml}}"                     |
 |       img="img/panda_plantuml_demo"   |       img="{{build}}/img/panda_plantuml_demo"   |
-|       out="{{_build}}/img" }          |       out="{{build}}/img" }                     |
+|       out="{{_build}}/img"            |       out="{{build}}/img"                       |
+|       caption="Caption"               |       caption="Caption"                         |
+|       alt="Alternative description" } |       alt="Alternative description" }           |
 | @startuml                             | @startuml                                       |
 | Alice -> Bob: hello                   | Alice -> Bob: test                              |
 | @enduml                               | @enduml                                         |
@@ -436,6 +424,9 @@ It is sometimes useful to build a dependency list on the fly.
 `panda` can generate a dependency list for make, in the same vein than the gcc `-M` option.
 The environment variable `PANDA_TARGET` must be defined with the target name.
 `panda` will generate a file named `${PANDA_TARGET}.d`{.sh} containing the dependencies of `${PANDA_TARGET}`{.sh}.
+
+The dependency filename can be redefined with the environment variable
+`PANDA_DEP_FILE` (e.g. to save the dependency file in a different directory).
 
 E.g.:
 

@@ -1,6 +1,6 @@
 % Panda - Pandoc add-ons (Lua filters for Pandoc)
 % Christophe Delord - <http://cdelord.fr/panda>
-% 12th november 2021
+% 26th march 2023
 
 [panda]: http://cdelord.fr/panda "Pandoc add-ons (Lua filters for Pandoc)"
 [GraphViz]: http://graphviz.org/
@@ -17,7 +17,10 @@
 [GitHub]: https://github.com/CDSoft/panda
 [cdelord.fr]: http://cdelord.fr
 [gnuplot]: http://www.gnuplot.info/
+[lsvg]: http://cdelord.fr/lsvg/
 [UPP]: http://cdelord.fr/upp "Universal PreProcessor"
+[LuaX]: http://cdelord.fr/luax "Lua eXtended interpretor"
+[LuaX documentation]: http://cdelord.fr/luax/luax.lua.html
 
 About panda
 ===========
@@ -54,9 +57,11 @@ Installation
 
 1. Download the sources: `git clone https://github.com/CDSoft/panda`.
 2. Run `make test` to run tests.
-3. Run `make install` to install `panda` and `panda.lua` to `~/.local/bin` (see `INSTALL_PATH` in `Makefile`).
+3. Run `make install` to install `panda` and `panda.lua` to `~/.local/bin` (see `PREFIX` in `Makefile`).
 
 `panda` and `panda.lua` can also be installed anywhere. Nothing else is required (except from [Pandoc] obviously).
+
+**Note**: `panda` can also be installed with [makex](https://github.com/CDSoft/makex).
 
 Usage
 =====
@@ -91,6 +96,11 @@ Cheat sheet
 | any block         |               | `include=file`            | replaces the div block with the content of    |
 |                   |               |                           | `file` (rendered according to its format)     |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
+| div block         |               | `doc=file`                | replaces the div block with text blocks from  |
+|                   |               | `from=start_pattern`      | `file` (rendered according to its format).    |
+|                   |               | `to=end_pattern`          | Blocks are separated by the patterns `from`   |
+|                   |               |                           | and `to` (`@@@` is the default separator).    |
++-------------------+---------------+---------------------------+-----------------------------------------------+
 | div block,        |               | `shift=n`                 | adds `n` to header levels in an imported      |
 | code block        |               |                           | div block                                     |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
@@ -109,10 +119,10 @@ Cheat sheet
 | inline code       |               |                           | content of `file`                             |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
 | code block,       |               | `fromline=n`              | includes a file from line number `n`          |
-| inline code       |               |                           |                                               |
+| inline code       |               | `from=n`                  |                                               |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
 | code block,       |               | `toline=n`                | includes a file up to line number `n`         |
-| inline code       |               |                           |                                               |
+| inline code       |               | `to=n`                    |                                               |
 +-------------------+---------------+---------------------------+-----------------------------------------------+
 | code block,       |               | `cmd="shell command"`     | replaces the code block by the result of the  |
 | inline code       |               | `icmd="shell command"`    | shell command. With`icmd` the code block      |
@@ -177,6 +187,10 @@ This text is ignored, definitions are in foo.lua.
 foo is defined in `foo.lua` and is {{foo}}.
 ~~~
 
+`meta` code blocks contain Lua code executed by the Pandoc Lua interpretor.
+Panda also contains the [LuaX] modules reimplemented in Lua.
+More details are available in the [Luax documentation].
+
 Conditional blocks
 ==================
 
@@ -206,6 +220,9 @@ Section title levels are shifted by n (0 if not specified).
 The included file can be in a different format
 (e.g. a markdown file can include a reStructuredText file).
 
+If the block has an input format as a class, the file is parsed according to
+this format.
+
 Block inclusion
 ===============
 
@@ -225,6 +242,25 @@ The optional pattern describes the part of the text that will be rendered.
 The format uses the captures defined by the pattern to format the content of the block
 (`"%1"` if not defined).
 
+If the block has an input format as a class, its result is parsed according to
+this format.
+
+Documentation extraction
+========================
+
+Documentation fragments can be extracted from other source code files.
+The `doc` attribute contains the name of the file where documentation is extracted.
+All the documentation blocks are extracted, concatenated and parsed.
+The result replaces the div block content.
+
+~~~markdown
+:::{doc=file.h shift=n from="@@@" to="@@@"}
+This text is optional and will be replaced by the content of file.h
+which is delimited by @@@.
+Section title levels are shifted by n (0 if not specified).
+:::
+~~~
+
 Scripts
 =======
 
@@ -237,6 +273,9 @@ The result replaces the content of the code block.
 
 `icmd` can be used instead of `cmd` to let Pandoc parse the result of the command
 and include it in the document as a Span or Div node.
+
+An explicit file extension can be given after `%s` for languages that require
+specific file extensions (e.g. `%s.fs` for F#).
 
 +-------------------------------------------------------+-------------------------------------------------------+
 | Source                                                | Result                                                |
@@ -251,6 +290,8 @@ and include it in the document as a Span or Div node.
 | Lua says `print "Hello from Lua!"`{icmd=lua}          | Lua says `print "Hello from Lua!"`{icmd=lua}          |
 | ~~~                                                   |                                                       |
 +-------------------------------------------------------+-------------------------------------------------------+
+
+Note: `{.python cmd=python}` is equivalent to `{.python cmd="python %s"}` and `{.python cmd="python %s.py"}`.
 
 Diagrams
 ========
@@ -277,9 +318,12 @@ If `img` contains `%h`, it is replaced by a hash computed from the diagram sourc
 The file format (extension) must be in the `render` field,
 after the `%o` tag (e.g.: `%o.png`), not in the `img` field.
 
+If the program requires a specific input file extension, it can be specified in the `render` field,
+after the `%i` tag (e.g.: `%i.xyz`).
+
 ```meta
 _plantuml = "{{plantuml}}"
-_build = "{{build}}"
+_build = "output_path"
 ```
 
 +---------------------------------------+-------------------------------------------------+
@@ -328,6 +372,11 @@ Diagram         Predefined variable     Render command
 [gnuplot]       `gnuplot`               `{{gnuplot}}`
                 `gnuplot.svg`           `{{gnuplot.svg}}`
                 `gnuplot.png`           `{{gnuplot.png}}`
+                `gnuplot.pdf`           `{{gnuplot.pdf}}`
+[lsvg]          `lsvg`                  `{{lsvg}}`
+                `lsvg.svg`              `{{lsvg.svg}}`
+                `lsvg.png`              `{{lsvg.png}}`
+                `lsvg.pdf`              `{{lsvg.pdf}}`
 
 Notes:
 
@@ -350,13 +399,18 @@ Notes:
 
 E.g.:
 
+```meta
+_dot = "{{dot}}"
+_gnuplot = "{{gnuplot}}"
+```
+
 +-------------------------------------------+-----------------------------------------------------+
 | Source                                    | Result                                              |
 +===========================================+=====================================================+
 | ~~~ markdown                              |                                                     |
-| ```{.dot render="{{dot}}"                 | ```{.dot render="{{dot}}"                           |
+| ```{.dot render="{{_dot}}"                | ```{.dot render="{{dot}}"                           |
 |          img="img/panda_diagram_example"  |          img="{{build}}/img/panda_diagram_example"  |
-|          out="{{build}}/img" }            |          out="{{build}}/img" }                      |
+|          out="{{_build}}/img" }           |          out="{{build}}/img" }                      |
 | digraph {                                 | digraph {                                           |
 |     rankdir=LR;                           |     rankdir=LR;                                     |
 |     input -> pandoc -> output             |     input -> pandoc -> output                       |
@@ -368,9 +422,9 @@ E.g.:
 | ~~~                                       |                                                     |
 +-------------------------------------------+-----------------------------------------------------+
 | ~~~ markdown                              |                                                     |
-| ```{ render="{{gnuplot}}"                 | ```{ render="{{gnuplot}}"                           |
+| ```{ render="{{_gnuplot}}"                | ```{ render="{{gnuplot}}"                           |
 |      img="img/panda_gnuplot_example"      |      img="{{build}}/img/panda_gnuplot_example"      |
-|      out="{{build}}/img" }                |      out="{{build}}/img" height=192 }               |
+|      out="{{_build}}/img" }               |      out="{{build}}/img" height=192 }               |
 | set xrange [-pi:pi]                       | set xrange [-2*pi:2*pi]                             |
 | set yrange [-1.5:1.5]                     | set yrange [-1.5:1.5]                               |
 | plot sin(x) lw 4, cos(x) lw 4             | plot sin(x) lw 4, cos(x) lw 4                       |
@@ -380,13 +434,17 @@ E.g.:
 
 Filters can be combined. E.g.: a diagram can be stored in an external file, included and rendered by `panda`.
 
+```meta
+_doc = "path"
+```
+
 +-------------------------------------------+-------------------------------------------+
 | Source                                    | Result                                    |
 +===========================================+===========================================+
 | ~~~ markdown                              |                                           |
 | The file `hello.dot` contains:            | The file `hello.dot` contains:            |
 |                                           |                                           |
-| ```{.dot include="{{doc}}/hello.dot"      | ```{.dot include="{{doc}}/hello.dot"      |
+| ```{.dot include="{{_doc}}/hello.dot"     | ```{.dot include="{{doc}}/hello.dot"      |
 |          pattern="digraph%s*%b{}" }       |          pattern="digraph%s*%b{}" }       |
 | ```                                       | ```                                       |
 | ~~~                                       |                                           |
@@ -394,10 +452,10 @@ Filters can be combined. E.g.: a diagram can be stored in an external file, incl
 | ~~~ markdown                              |                                           |
 | and is rendered as:                       | and is rendered as:                       |
 |                                           |                                           |
-| ```{ render="{{dot}}"                     | ```{ render="{{dot}}"                     |
+| ```{ render="{{_dot}}"                    | ```{ render="{{dot}}"                     |
 |      img="img/hello"                      |      img="{{build}}/img/hello"            |
-|      out="{{build}}/img"                  |      out="{{build}}/img"                  |
-|      include="{{doc}}/hello.dot" }        |      include="{{doc}}/hello.dot" }        |
+|      out="{{_build}}/img"                 |      out="{{build}}/img"                  |
+|      include="{{_doc}}/hello.dot" }       |      include="{{doc}}/hello.dot" }        |
 | ```                                       | ```                                       |
 | ~~~                                       |                                           |
 +-------------------------------------------+-------------------------------------------+
@@ -411,8 +469,8 @@ E.g.:
 | Source                                    | Result                                    |
 +===========================================+===========================================+
 | ~~~ markdown                              |                                           |
-| ```{ render="{{dot}}"                     | ```{ render="{{dot}}"                     |
-|      include="{{doc}}/hello.dot" }        |      include="{{doc}}/hello.dot" }        |
+| ```{ render="{{_dot}}"                    | ```{ render="{{dot}}"                     |
+|      include="{{_doc}}/hello.dot" }       |      include="{{doc}}/hello.dot" }        |
 | ```                                       | ```                                       |
 | ~~~                                       |                                           |
 +-------------------------------------------+-------------------------------------------+

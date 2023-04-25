@@ -16,65 +16,122 @@
 # For further information about Panda you can visit
 # http://cdelord.fr/panda
 
-INSTALL_PATH = $(HOME)/.local/bin
+PREFIX := $(firstword $(wildcard $(PREFIX) $(HOME)/.local))
 BUILD = .build
 
+## Test and generate Panda documentation
 all: test doc
+
+# include makex to install Panda test dependencies
+include makex.mk
+
+###############################################################################
+# Help
+###############################################################################
+
+welcome:
+	@echo '${CYAN}Panda${NORMAL}'
+
+#############################################################################
+# Clean
+#############################################################################
 
 .PHONY: clean
 .PHONY: distclean
 
+## Clean the build directory (keep the downloaded jar and css files)
 clean:
 	find $(BUILD) -maxdepth 1 ! -name $(BUILD) ! -name "*.jar" ! -name "*.css" -exec rm -rf {} \;
 
+## Clean the build directory
 distclean:
 	rm -rf $(BUILD)
 
+#############################################################################
+# Installation
+#############################################################################
+
 .PHONY: install
 
+## Install panda.lua and panda
 install:
-	install panda.lua $(INSTALL_PATH)/
-	install panda $(INSTALL_PATH)/
+	@test -n "$(PREFIX)" || (echo "No installation path found" && false)
+	@mkdir -p $(PREFIX)/bin
+	install panda.lua $(PREFIX)/bin
+	install panda $(PREFIX)/bin
 
 .PHONY: install-all
 
-install-all: install $(BUILD)/plantuml.jar $(BUILD)/ditaa.jar
-	install $(BUILD)/plantuml.jar $(INSTALL_PATH)/
-	install $(BUILD)/ditaa.jar $(INSTALL_PATH)/
+## Install panda, panda.lua, PlantUML and ditaa
+install-all: install
+
+$(PREFIX)/bin/%.jar: $(BUILD)/%.jar
+	@test -n "$(PREFIX)" || (echo "No installation path found" && false)
+	@mkdir -p $(PREFIX)/bin
+	install $< $(dir $@)
+
+#############################################################################
+# Tests
+#############################################################################
 
 .PHONY: test
 
+## Run Panda tests
 test: $(BUILD)/test.md test/test_result.md
 	diff $(BUILD)/test.md test/test_result.md
 	# Well done
 
-$(BUILD)/test.md: panda panda.lua test/test.md test/test_include.md test/test_include.c $(BUILD)/plantuml.jar $(BUILD)/ditaa.jar
+$(BUILD)/test.md: panda panda.lua test/test.md test/test_include.md test/test_include.c $(BUILD)/plantuml.jar $(BUILD)/ditaa.jar | $(PANDOC)
 	@mkdir -p $(BUILD) $(BUILD)/img
-	build=$(BUILD) PANDA_CACHE=$(BUILD)/cache PANDA_TARGET=$@ PLANTUML=$(BUILD)/plantuml.jar ./panda --standalone test/test.md -o $(BUILD)/test.md
+	build=$(BUILD) PANDA_CACHE=$(BUILD)/cache PANDA_TARGET=$@ PLANTUML=$(BUILD)/plantuml.jar $(PANDOC) -L panda.lua --standalone test/test.md -o $(BUILD)/test.md
 
 .PHONY: diff
 
+## Compare test results
 diff: $(BUILD)/test.md test/test_result.md
 	meld $^
 
+#############################################################################
+# Documentation
+#############################################################################
+
 .PHONY: doc
 
+## Generate Panda documentation
 doc: $(BUILD)/panda.html
 
 CSS = $(BUILD)/cdelord.css
 
-$(BUILD)/panda.html: doc/panda.md doc/hello.dot $(CSS) panda panda.lua
+$(BUILD)/panda.html: doc/panda.md doc/hello.dot $(CSS) panda panda.lua | $(PANDOC)
 	@mkdir -p $(BUILD) $(BUILD)/img
-	doc=doc build=$(BUILD) PANDA_CACHE=$(BUILD)/cache PANDA_TARGET=$@ PLANTUML=$(BUILD)/plantuml.jar DITAA=$(BUILD)/ditaa.jar ./panda --to=html5 --standalone --self-contained --css=$(CSS) $< -o $@
+	doc=doc build=$(BUILD) PANDA_CACHE=$(BUILD)/cache PANDA_TARGET=$@ PLANTUML=$(BUILD)/plantuml.jar DITAA=$(BUILD)/ditaa.jar $(PANDOC) -L panda.lua --to=html5 --standalone --embed-resources --css=$(CSS) $< -o $@
 
 $(CSS):
 	@mkdir -p $(dir $@)
-	wget http://cdelord.fr/cdelord.css -O $@
+	test -f $@ || wget http://cdelord.fr/cdelord.css -O $@
+
+#############################################################################
+# PlantUML
+#############################################################################
+
+install-all: $(PREFIX)/bin/plantuml.jar
+
+PLANTUML_VERSION = 1.2023.0
+PLANTUML_URL = https://github.com/plantuml/plantuml/releases/download/v$(PLANTUML_VERSION)/plantuml-$(PLANTUML_VERSION).jar
 
 $(BUILD)/plantuml.jar:
 	@mkdir -p $(BUILD)
-	wget http://sourceforge.net/projects/plantuml/files/plantuml.jar/download -O $@
+	test -f $@ || wget $(PLANTUML_URL) -O $@
+
+#############################################################################
+# Ditaa
+#############################################################################
+
+install-all: $(PREFIX)/bin/ditaa.jar
+
+DITAA_VERSION = 0.11.0
+DITAA_URL = https://github.com/stathissideris/ditaa/releases/download/v$(DITAA_VERSION)/ditaa-$(DITAA_VERSION)-standalone.jar
 
 $(BUILD)/ditaa.jar:
 	@mkdir -p $(BUILD)
-	wget https://github.com/stathissideris/ditaa/releases/download/v0.11.0/ditaa-0.11.0-standalone.jar -O $@
+	test -f $@ || wget $(DITAA_URL) -O $@

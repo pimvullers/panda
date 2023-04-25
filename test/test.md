@@ -16,6 +16,8 @@ Output file: {{output_file}}
 foo = "bar"
 bar = "The title is: "..utils.stringify(title)
 email = "[my email](me@example.com)"
+sumsq = function(n) return F.range(n):map(function(x) return x*x end):sum() end
+sumsq100 = sumsq(100)
 ```
 
 ```{.meta include=test/test.lua}
@@ -28,6 +30,7 @@ email = "[my email](me@example.com)"
 -- baz = {{baz}}
 -- email = {{email}}
 -- email2 = {{email2}}
+-- sumsq100 = {{sumsq100}}
 ```
 
 - title = "{{title}}"
@@ -103,7 +106,7 @@ and
 
 # File inclusion
 
-```{.c include=test/test_include.c from=5}
+```{.c include=test/test_include.c from=15}
 ```
 
 ```{include=test/test_include.c pattern="(main).-(%b{})" format="%1 = %2"}
@@ -112,15 +115,46 @@ and
 :::{include=test/test_include.md shift=1}
 :::
 
+## CSV
+
+:::{.csv include=test/test.csv}
+:::
+
+# Documentation extraction
+
+:::{doc=test/test_include.c from="@@@main"}
+:::
+
 # Scripts
 
+## No script name
+
+```{.class cmd="python"}
+print("Pandoc is great!")
+```
+
+## Script name with implicit extension
+
 ```{.class cmd="python %s"}
+print("Pandoc is great!")
+```
+
+## Script name with explicit extension
+
+```{.class cmd="python %s.py"}
 print("Pandoc is great!")
 ```
 
 1 + 1 = `echo $((1+1))`{cmd=sh}
 
 1 + 1 = `echo $((1+1))`{icmd=sh}
+
+## Script producing CSV tables
+
+```{.python .csv icmd="python"}
+print("X, Y, Z")
+print("a, b, c")
+```
 
 # Diagrams
 
@@ -134,4 +168,15 @@ Alice -> Bob: hello
 @startuml
 Alice -> Bob: hello
 @enduml
+```
+
+```{.lua render="{{lsvg}}" img="{{build}}/img/lsvg_test" out="{{build}}/img"}
+local w, h = 320, 240
+img {
+    width = w,
+    height = h,
+    font_size = h/2,
+    text_anchor = "middle",
+    Text "lsvg" { x=(w/2, y=h/2, dy="0.25em", fill="red" },
+}
 ```

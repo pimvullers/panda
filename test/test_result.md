@@ -19,6 +19,7 @@ Output file: .build/test.md
 -- baz = {{baz}}
 -- email = [my email](me@example.com)
 -- email2 = me2@example.com
+-- sumsq100 = 338350
 ```
 
 -   title = "Test document for panda"
@@ -90,7 +91,45 @@ int main(void)
 
 Content of the included file (foo = bar)
 
+## CSV
+
+  Year   Score   Title
+  ------ ------- ------------------------
+  1968   86      Greetings
+  1970   17      Bloody Mama
+  1970   73      Hi, Mom!
+  1971   40      Born to Win
+  1973   98      Mean Streets
+  1973   88      Bang the Drum Slowly
+  1974   97      The Godfather, Part II
+  1976   41      The Last Tycoon
+  1976   99      Taxi Driver
+
+# Documentation extraction
+
+This is the main module documentation.
+
+The main function is:
+
+``` c
+int main(void);
+```
+
 # Scripts
+
+## No script name
+
+``` class
+Pandoc is great!
+```
+
+## Script name with implicit extension
+
+``` class
+Pandoc is great!
+```
+
+## Script name with explicit extension
 
 ``` class
 Pandoc is great!
@@ -100,9 +139,17 @@ Pandoc is great!
 
 1 + 1 = 2
 
+## Script producing CSV tables
+
+  X   Y   Z
+  --- --- ---
+  a   b   c
+
 # Diagrams
 
 ![Alice & Bob](.build/img/panda_plantuml_test.svg "Alice & Bob")
 
 [![Alternative
 description](.build/cache/0ec62f1568ac33e20ec8d430ae77a9cbe6c9cd46.svg "Alice & Bob")](http://example.com "Alice & Bob")
+
+![](.build/img/lsvg_test.svg){.lua}
